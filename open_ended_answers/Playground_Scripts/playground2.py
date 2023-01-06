@@ -13,7 +13,7 @@ from openai.embeddings_utils import get_embedding
 import pandas as pd
  
 # Read Data
-input_datapath = './Data_Training/fine_food_reviews_1k.csv'  # to save space, we provide a pre-filtered dataset
+input_datapath = '../Data_Training/fine_food_reviews_1k.csv'  # to save space, we provide a pre-filtered dataset
 df = pd.read_csv(input_datapath, index_col=0)
 df = df[['Time', 'ProductId', 'UserId', 'Score', 'Summary', 'Text']]
 df = df.dropna()
@@ -40,6 +40,7 @@ df['ada_similarity'] = df.combined.apply(lambda x: get_embedding(x, engine='text
 df['ada_search'] = df.combined.apply(lambda x: get_embedding(x, engine='text-embedding-ada-002'))
 df.to_csv('../openai-cookbook/examples/data/fine_food_reviews_with_embeddings_1k.csv')
 
+#%%
 # start of Regression using embeddings
 import numpy as np
 
@@ -48,7 +49,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 # If you have not run the "Obtain_dataset.ipynb" notebook, you can download the datafile from here: https://cdn.openai.com/API/examples/data/fine_food_reviews_with_embeddings_1k.csv
-datafile_path = "../openai-cookbook/examples/data/fine_food_reviews_with_embeddings_1k.csv"
+datafile_path = "C:\\Repositories\\engineer_tests\\open_ended_answers\\Data_Training\\fine_food_reviews_with_embeddings_1k.csv"
 
 df = pd.read_csv(datafile_path)
 df["ada_similarity"] = df.ada_similarity.apply(eval).apply(np.array)
