@@ -44,3 +44,10 @@ for i in range(len(df['Question ID'].unique())):
                          cluster_description_file=directory+file[:-4]+f'_{q_ID}_cd.csv')
     print(ans[i])
     ans[i].plot_clusters(random_state=random_state, fig_path=directory+file[:-4]+f'_{q_ID}.png')
+
+#%% Test the model with a sample answer not in the dataset which is correct.
+# from openai.embeddings_utils import get_embedding
+# test_answer = "A minimum weight concept for an aircraft fuselage longitudinal stringer would likely involve the use of lightweight, high-strength materials such as carbon fiber composites. These materials have high specific strength and stiffness, allowing for a thinner, lighter stringer while still maintaining structural integrity.The stringer's shape would be optimized using finite element analysis to minimize weight while meeting strength and stiffness requirements. The optimal shape would likely be a thin, tubular shape with a smooth contour to reduce aerodynamic drag. The manufacturing method could include automated fiber placement or tape laying techniques to create the stringer with minimal material waste. Additionally, advanced curing methods such as out-of-autoclave or vacuum-assisted resin infusion could be used to further reduce the weight of the stringer while maintaining its structural integrity. It's worth noting that, despite no cost or schedule constraints, the final concept and design of the stringer could be a balance between this minimum weight concept and the final assembly, maintenance and performance of the aircraft."
+test_answer = "A minimum weight concept for an aircraft fuselage."
+# get_embedding(test_answer, engine='text-embedding-ada-002')
+ans[0].test_model(test_answer)

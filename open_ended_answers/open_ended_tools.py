@@ -210,3 +210,17 @@ class OpenEndedAnswer:
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
+    def test_model(self,input_answer):
+        # Predict score of metrics for input_answer to the question
+        
+        # Create embedding from input answer
+        input_embedding = get_embedding(input_answer, engine='text-embedding-ada-002')
+        
+        prediction = []
+        for i in range(len(self.metrics)):
+            # TODO: The input_embedding must be an 1D numpy array with the list as the first and only element.
+            prediction.append(self.rfr[i].predict(input_embedding))
+            # mse = mean_squared_error(self.y_test[i], preds)
+            # mae = mean_absolute_error(self.y_test[i], preds)
+        # return prediction
+        return prediction
