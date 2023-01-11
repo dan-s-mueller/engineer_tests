@@ -25,11 +25,22 @@ df = df[['Question ID', 'Question', 'Time', 'Answer',
          'Curiousity_optimum', 'Hunger_optimum', 'Smarts_optimum']]
 df = df.dropna()
 metrics = ['Curiousity_grade', 'Hunger_grade', 'Smarts_grade']
+# df.groupby('Question ID')
 
 # Create open_ended_answer object and run functions
-# TODO: Process so that it is only pulling one question at a time. Then we can make an array of objects.
-question_id = 1
-ans = open_ended_tools.OpenEndedAnswer(df, metrics)
-ans.create_answer_model(directory+file, random_state=random_state, generate_embeddings=generate_embeddings)
-ans.make_clusters(n_clusters=n_clusters, random_state=random_state, cluster_description_file=directory+file[:-4]+f'_{question_id}_cd.csv')
-ans.plot_clusters(random_state=random_state, fig_path=directory+file[:-4]+f'_{question_id}.png')
+question = []
+ans = []
+for i in range(len(df['Question ID'].unique())):
+    q_ID = df['Question ID'].unique()[i]
+    question.append(df['Question'][df.index[df['Question ID'] == q_ID].tolist()[0]])
+    ans.append(open_ended_tools.OpenEndedAnswer(df[df['Question ID'] == q_ID], metrics))
+    
+    ans[i].create_answer_model(directory+file[:-4]+f'_{q_ID}.csv', 
+                               random_state=random_state, 
+                               generate_embeddings=generate_embeddings)
+    ans[i].make_clusters(n_clusters=n_clusters, 
+                         random_state=random_state, 
+                         ans_per_cluster=1,
+                         cluster_description_file=directory+file[:-4]+f'_{q_ID}_cd.csv')
+    print(ans[i])
+    ans[i].plot_clusters(random_state=random_state, fig_path=directory+file[:-4]+f'_{q_ID}.png')

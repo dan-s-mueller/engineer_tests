@@ -16,28 +16,56 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
-import matplotlib
 import matplotlib.pyplot as plt
 
 class OpenEndedAnswer:
     def __init__(self, df, metrics):
         self.df = df
         self.metrics = metrics
+                
+        self.X_train = None
+        self.X_test = None
+        self.y_train = None
+        self.ytest = None
         self.rfr = None
+        self.rfr = None
+        
         self.n_clusters = None
         self.cluster_descriptions = None
         self.matrix = None
 
-    def create_answer_model(self, file, generate_embeddings=False, random_state=None):
+    def __str__(self):            
+        str_out = ''
+        # Print question ID and question. Also number of answers provided to train.
+        str_out += 'Question: '+str(self.df['Question ID'][0])+', '+self.df['Question'][0]+'\n'
+        str_out+= f'# of Answers in Model: {self.df.shape[0]}\n'
+        
+        # Print metrics and the number of clusters
+        str_out += 'Metrics: '+str(self.metrics)+'\n'
+        str_out += f'# of Clusters: {self.n_clusters}\n'
+        
+        
+        # Print the predictability of the model.
+        for i in range(len(self.metrics)):
+            preds = self.rfr[i].predict(self.X_test[i])
+            mse = mean_squared_error(self.y_test[i], preds)
+            mae = mean_absolute_error(self.y_test[i], preds)
+            str_out += f'Ada similarity embedding performance of {self.metrics[i]}: mse={mse:.2f}, mae={mae:.2f}\n'
+        return str_out
+
+    def create_answer_model(self, file, 
+                            generate_embeddings=False, 
+                            random_state=None,
+                            debug=False):
         # Creates an answer model by either generating embeddings, or using existing ones.
         # Outputs a RandomForestRegressor object which can be used to predict categories by metric.
 
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-            self.df['ada_similarity'] = self.df.Answer.apply(lambda x:
-                                                             get_embedding(x, engine='text-embedding-ada-002'))
-            self.df['ada_search'] = self.df.Answer.apply(lambda x:
-                                                         get_embedding(x, engine='text-embedding-ada-002'))
+            self.df = self.df.assign(ada_similarity = self.df.Answer.apply(lambda x:
+                                                             get_embedding(x, engine='text-embedding-ada-002')))
+            self.df = self.df.assign(ada_search = self.df.Answer.apply(lambda x:
+                                                         get_embedding(x, engine='text-embedding-ada-002')))
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
             print('Embeddings created.')
         else:
@@ -48,32 +76,50 @@ class OpenEndedAnswer:
                 eval).apply(np.array)
             print('Embeddings file read.')
 
+        
+        self.X_train = []
+        self.X_test = []
+        self.y_train = []
+        self.y_test = []
         self.rfr = []
         # Loop through metrics and generate machine learning models for each of them per question.
         for metric in self.metrics:
             # Train model to predict categories
             X_train, X_test, y_train, y_test = train_test_split(list(
-                self.df.ada_similarity.values), getattr(self.df, metric), test_size=1, random_state=random_state)
+                self.df.ada_similarity.values), 
+                getattr(self.df, metric), test_size=1, random_state=random_state)
+            
+            self.X_train.append(X_train)
+            self.X_test.append(X_test)
+            self.y_train.append(y_train)
+            self.y_test.append(y_test)
 
-            rfr_temp = RandomForestRegressor(n_estimators=100)
+            rfr_temp = RandomForestRegressor(n_estimators=100,
+                                             random_state=random_state)
             rfr_temp.fit(X_train, y_train)
             preds = rfr_temp.predict(X_test)
             self.rfr.append(rfr_temp)
 
             # Display some basic information about the predictability of the model for the metric.
-            mse = mean_squared_error(y_test, preds)
-            mae = mean_absolute_error(y_test, preds)
-            print(
-                f"Ada similarity embedding performance of {metric}: mse={mse:.2f}, mae={mae:.2f}")
-            bmse = mean_squared_error(
-                y_test, np.repeat(y_test.mean(), len(y_test)))
-            bmae = mean_absolute_error(
-                y_test, np.repeat(y_test.mean(), len(y_test)))
-            print(
-                f"Dummy mean prediction performance for {metric}: mse={bmse:.2f}, mae={bmae:.2f}\n"
-            )
+            if debug:
+                mse = mean_squared_error(y_test, preds)
+                mae = mean_absolute_error(y_test, preds)
+                print(
+                    f"Ada similarity embedding performance of {metric}: mse={mse:.2f}, mae={mae:.2f}")
+                
+                bmse = mean_squared_error(
+                    y_test, np.repeat(y_test.mean(), len(y_test)))
+                bmae = mean_absolute_error(
+                    y_test, np.repeat(y_test.mean(), len(y_test)))
+                print(
+                    f"Dummy mean prediction performance for {metric}: mse={bmse:.2f}, mae={bmae:.2f}\n"
+                )
 
-    def make_clusters(self, n_clusters=4, random_state=None, ans_per_cluster=3, cluster_description_file=None):
+    def make_clusters(self, n_clusters=4, 
+                      random_state=None, 
+                      ans_per_cluster=3, 
+                      cluster_description_file=None,
+                      debug=False):
         # Name the clusters with openai and show the similar answers
         self.n_clusters = n_clusters
 
@@ -86,23 +132,22 @@ class OpenEndedAnswer:
                         random_state=random_state, n_init=10)
         kmeans.fit(matrix)
         labels = kmeans.labels_
-        self.df['Cluster'] = labels
-
-        for metric in self.metrics:
-            print(getattr(self.df.groupby('Cluster'), metric).mean())
-        # print(df.groupby('Cluster').Curiousity_grade.mean())
-        # print(df.groupby('Cluster').Hunger_grade.mean())
-        # print(df.groupby('Cluster').Smarts_grade.mean())
+        self.df = self.df.assign(Cluster = labels)
+        
+        if debug:
+            for metric in self.metrics:
+                print(getattr(self.df.groupby('Cluster'), metric).mean())
 
         responses = []
         example_answers = []
         # Reading a review which belong to each group.
         for i in range(n_clusters):
-            print(f"Cluster {i} Theme:", end=" ")
+            if debug:
+                print(f"Cluster {i} Theme:", end=" ")
             answers = "\n".join(
                 self.df[self.df.Cluster == i]
                 .Answer
-                .sample(ans_per_cluster, random_state=42)
+                .sample(ans_per_cluster, random_state=random_state)
                 .values
             )
             response = openai.Completion.create(
@@ -116,18 +161,21 @@ class OpenEndedAnswer:
             )
             responses.append(
                 response["choices"][0]["text"].replace("\n", ""))
-            print(responses[i])
+            if debug:
+                print(responses[i])
 
             out_string = ""
             for j in range(ans_per_cluster):
                 for metric in self.metrics:
                     metric_out = getattr(self.df[self.df.Cluster == i].sample(
                         ans_per_cluster, random_state=random_state), metric).values[j]
-                    print(metric_out, end=', ')
+                    if debug:
+                        print(metric_out, end=', ')
                     out_string = out_string + str(metric_out) + ', '
                 ans_out = self.df[self.df.Cluster == i].sample(
                     ans_per_cluster, random_state=random_state).Answer.values[j]
-                print(ans_out, end='\n')
+                if debug:
+                    print(ans_out, end='\n')
                 out_string = out_string + ans_out + '\n'
             example_answers.append(out_string)
         self.cluster_descriptions = pd.DataFrame({'description': responses,
