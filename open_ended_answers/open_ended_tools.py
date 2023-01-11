@@ -37,7 +37,7 @@ class OpenEndedAnswer:
     def __str__(self):            
         str_out = ''
         # Print question ID and question. Also number of answers provided to train.
-        str_out += 'Question: '+str(self.df['Question ID'][0])+', '+self.df['Question'][0]+'\n'
+        str_out += 'Question: '+str(self.df['Question ID'].iloc[0])+', '+self.df['Question'].iloc[0]+'\n'
         str_out+= f'# of Answers in Model: {self.df.shape[0]}\n'
         
         # Print metrics and the number of clusters
@@ -218,8 +218,7 @@ class OpenEndedAnswer:
         
         prediction = []
         for i in range(len(self.metrics)):
-            # TODO: The input_embedding must be an 1D numpy array with the list as the first and only element.
-            prediction.append(self.rfr[i].predict(input_embedding))
+            prediction.append(self.rfr[i].predict([input_embedding]))
             # mse = mean_squared_error(self.y_test[i], preds)
             # mae = mean_absolute_error(self.y_test[i], preds)
         # return prediction

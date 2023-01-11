@@ -13,7 +13,7 @@ import open_ended_tools
 # Define run parameters
 directory = './Data_Training/'
 file = 'open_ended_answers.csv'
-generate_embeddings = False
+generate_embeddings = True
 n_clusters = 5  # Determined the number of clusters to use
 # Set to none to truly randomize. 42 used in code to reproduce samples to what is in openai docs.
 random_state = 10
@@ -46,8 +46,16 @@ for i in range(len(df['Question ID'].unique())):
     ans[i].plot_clusters(random_state=random_state, fig_path=directory+file[:-4]+f'_{q_ID}.png')
 
 #%% Test the model with a sample answer not in the dataset which is correct.
-# from openai.embeddings_utils import get_embedding
+# Good long answer from chatGPT
 # test_answer = "A minimum weight concept for an aircraft fuselage longitudinal stringer would likely involve the use of lightweight, high-strength materials such as carbon fiber composites. These materials have high specific strength and stiffness, allowing for a thinner, lighter stringer while still maintaining structural integrity.The stringer's shape would be optimized using finite element analysis to minimize weight while meeting strength and stiffness requirements. The optimal shape would likely be a thin, tubular shape with a smooth contour to reduce aerodynamic drag. The manufacturing method could include automated fiber placement or tape laying techniques to create the stringer with minimal material waste. Additionally, advanced curing methods such as out-of-autoclave or vacuum-assisted resin infusion could be used to further reduce the weight of the stringer while maintaining its structural integrity. It's worth noting that, despite no cost or schedule constraints, the final concept and design of the stringer could be a balance between this minimum weight concept and the final assembly, maintenance and performance of the aircraft."
-test_answer = "A minimum weight concept for an aircraft fuselage."
-# get_embedding(test_answer, engine='text-embedding-ada-002')
-ans[0].test_model(test_answer)
+
+# Short answer which is pretty bad.
+# test_answer = "A minimum weight concept for an aircraft fuselage."
+
+# Wrong answer.
+# test_answer = "Make it out of the same stuff as bridges, steel and lots of I-beams."
+
+# Correct answer that is not creative
+test_answer = "Use carbon fiber with I, Z, or hat cross sections. To make it as light as possible, cobond or cocure to the skins. You could use fasteners if there are certification reasons to do so. The stringers can be cured on assembly or precured and then attached as described."
+
+print(ans[0].test_model(test_answer))
