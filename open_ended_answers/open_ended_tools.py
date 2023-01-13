@@ -197,6 +197,7 @@ class OpenEndedAnswer:
         plt.figure(figsize=[18, 18])
         # TODO: Modify this to plot arbitrary number
         for category, color in enumerate(['purple', 'green', 'red', 'blue','black']):
+            df_cluster = self.df[self.df.Cluster == category]
             xs = np.array(x)[self.df.Cluster == category]
             ys = np.array(y)[self.df.Cluster == category]
             plt.scatter(xs, ys, color=color, alpha=0.3)
@@ -207,6 +208,9 @@ class OpenEndedAnswer:
             plt.scatter(avg_x, avg_y, marker='x', color=color,
                         s=100, label=f'Cluster {i}')
             plt.legend()
+            
+            for j in range(len(xs)):
+                plt.text(x=xs[i]+0.3,y=ys[i]+0.3,s=df_cluster['Question ID'].iloc[j])
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
