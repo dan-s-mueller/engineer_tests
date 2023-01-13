@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
+import matplotlib
 import matplotlib.pyplot as plt
 
 class OpenEndedAnswer:
@@ -62,17 +63,17 @@ class OpenEndedAnswer:
 
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-            self.df = self.df.assign(ada_similarity = self.df.Answer.apply(lambda x:
-                                                             get_embedding(x, engine='text-embedding-ada-002')))
-            self.df = self.df.assign(ada_search = self.df.Answer.apply(lambda x:
-                                                         get_embedding(x, engine='text-embedding-ada-002')))
+            embedding_model = 'text-embedding-ada-002'
+            self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            # self.df = self.df.assign(embedding = self.df.Answer.apply(lambda x:
+            #                                                  get_embedding(x, engine='text-embedding-ada-002')))
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
             print('Embeddings created.')
         else:
             # Create trained model with graded answers and embeddings
             # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
             self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
-            self.df['ada_similarity'] = self.df.ada_similarity.apply(
+            self.df['embedding'] = self.df.embedding.apply(
                 eval).apply(np.array)
             print('Embeddings file read.')
 
@@ -86,7 +87,7 @@ class OpenEndedAnswer:
         for metric in self.metrics:
             # Train model to predict categories
             X_train, X_test, y_train, y_test = train_test_split(list(
-                self.df.ada_similarity.values), 
+                self.df.embedding.values), 
                 getattr(self.df, metric), test_size=1, random_state=random_state)
             
             self.X_train.append(X_train)
@@ -115,7 +116,7 @@ class OpenEndedAnswer:
                     f"Dummy mean prediction performance for {metric}: mse={bmse:.2f}, mae={bmae:.2f}\n"
                 )
 
-    def make_clusters(self, n_clusters=4, 
+    def make_named_clusters(self, n_clusters=4, 
                       random_state=None, 
                       ans_per_cluster=3, 
                       cluster_description_file=None,
@@ -124,7 +125,7 @@ class OpenEndedAnswer:
         self.n_clusters = n_clusters
 
         # Generate clusters
-        matrix = np.vstack(self.df.ada_similarity.values)
+        matrix = np.vstack(self.df.embedding.values)
         matrix.shape
         self.matrix = matrix
         self.n_clusters = n_clusters
@@ -182,7 +183,32 @@ class OpenEndedAnswer:
                                                   'example_answers': example_answers})
         if cluster_description_file:
             self.cluster_descriptions.to_csv(cluster_description_file)
-    def plot_clusters(self, fig_path = None, random_state = None):
+    def plot_graded_clusters(self, random_state=None):
+        # Plots embeddings colored by rating. Generates 1 x plot per metric.
+        
+        # Commented out line was in ther example, but I think it doesn't work.
+        # matrix = np.array(self.df.embedding.apply(eval).to_list())
+        matrix = np.vstack(self.df.embedding.values)
+        
+        # Create a t-SNE model and transform the data
+        tsne = TSNE(n_components=2, perplexity=15, random_state=random_state, init='random', learning_rate=200)
+        vis_dims = tsne.fit_transform(matrix)
+        colors = ["red", "orange", "green"]
+        x = [x for x,y in vis_dims]
+        y = [y for x,y in vis_dims] 
+        colormap = matplotlib.colors.ListedColormap(colors)
+        
+        # Create a new plot per metric, colored by the grade.
+        font = {'size'   : 12}
+        matplotlib.rc('font', **font)
+        for metric in self.metrics:
+            plt.figure(figsize=[10, 10])
+            color_indices = getattr(self.df,metric)+1
+            plt.scatter(x, y, c=color_indices, cmap=colormap, alpha=0.3)
+            plt.title(f'{metric} visualized in language using t-SNE')
+            for j in range(len(x)):
+                plt.text(x=x[j]+0.3,y=y[j]+0.3,s=self.df.index[j])
+    def plot_named_clusters(self, fig_path = None, random_state = None):
         # Clusters identified visualized in language 2d using t-SNE
         # Requires that you first run make_clusters()
         tsne = TSNE(
@@ -194,29 +220,29 @@ class OpenEndedAnswer:
         y = [y for x, y in vis_dims2]
         i = 0
 
-        plt.figure(figsize=[18, 18])
+        font = {'size'   : 12}
+        matplotlib.rc('font', **font)
+        plt.figure(figsize=[10, 10])
         # TODO: Modify this to plot arbitrary number
         for category, color in enumerate(['purple', 'green', 'red', 'blue','black']):
             df_cluster = self.df[self.df.Cluster == category]
             xs = np.array(x)[self.df.Cluster == category]
             ys = np.array(y)[self.df.Cluster == category]
+            # Plot datapoints. Plot mean data.
             plt.scatter(xs, ys, color=color, alpha=0.3)
-
             avg_x = xs.mean()
             avg_y = ys.mean()
-
             plt.scatter(avg_x, avg_y, marker='x', color=color,
                         s=100, label=f'Cluster {i}')
             plt.legend()
-            
+            # Apply data labels of the question ID to each datapoint.
             for j in range(len(xs)):
-                plt.text(x=xs[i]+0.3,y=ys[i]+0.3,s=df_cluster['Question ID'].iloc[j])
+                plt.text(x=xs[j]+0.3,y=ys[j]+0.3,s=df_cluster.index[j])
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
     def test_model(self,input_answer):
         # Predict score of metrics for input_answer to the question
-        
         # Create embedding from input answer
         input_embedding = get_embedding(input_answer, engine='text-embedding-ada-002')
         
@@ -225,5 +251,4 @@ class OpenEndedAnswer:
             prediction.append(self.rfr[i].predict([input_embedding]))
             # mse = mean_squared_error(self.y_test[i], preds)
             # mae = mean_absolute_error(self.y_test[i], preds)
-        # return prediction
         return prediction
