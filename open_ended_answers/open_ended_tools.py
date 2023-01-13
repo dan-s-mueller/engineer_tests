@@ -16,6 +16,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
+import seaborn as sns; sns.set()
+
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -115,8 +117,18 @@ class OpenEndedAnswer:
                 print(
                     f"Dummy mean prediction performance for {metric}: mse={bmse:.2f}, mae={bmae:.2f}\n"
                 )
-
-    def make_named_clusters(self, n_clusters=4, 
+    def test_model(self,input_answer):
+        # Predict score of metrics for input_answer to the question
+        # Create embedding from input answer
+        input_embedding = get_embedding(input_answer, engine='text-embedding-ada-002')
+        
+        prediction = []
+        for i in range(len(self.metrics)):
+            prediction.append(self.rfr[i].predict([input_embedding]))
+            # mse = mean_squared_error(self.y_test[i], preds)
+            # mae = mean_absolute_error(self.y_test[i], preds)
+        return prediction
+    def make_named_clusters(self, n_clusters=3, 
                       random_state=None, 
                       ans_per_cluster=3, 
                       cluster_description_file=None,
@@ -183,7 +195,17 @@ class OpenEndedAnswer:
                                                   'example_answers': example_answers})
         if cluster_description_file:
             self.cluster_descriptions.to_csv(cluster_description_file)
-    def plot_graded_clusters(self, random_state=None):
+    def plot_pairs(self, fig_path = None):
+        # Create a pairplot to visualize the scores of answers
+        pair_plot = sns.pairplot(self.df, height=5, 
+                                 vars = self.metrics,
+                                 diag_kind = None,
+                                 kind = 'hist',
+                                 corner = True)
+        
+        if fig_path:
+            pair_plot.savefig(fig_path)
+    def plot_graded_clusters(self, fig_path = None, random_state=None):
         # Plots embeddings colored by rating. Generates 1 x plot per metric.
         
         # Commented out line was in ther example, but I think it doesn't work.
@@ -193,21 +215,25 @@ class OpenEndedAnswer:
         # Create a t-SNE model and transform the data
         tsne = TSNE(n_components=2, perplexity=15, random_state=random_state, init='random', learning_rate=200)
         vis_dims = tsne.fit_transform(matrix)
-        colors = ["red", "orange", "green"]
+        colors = ['red', 'orange', 'green']
         x = [x for x,y in vis_dims]
         y = [y for x,y in vis_dims] 
         colormap = matplotlib.colors.ListedColormap(colors)
         
         # Create a new plot per metric, colored by the grade.
-        font = {'size'   : 12}
-        matplotlib.rc('font', **font)
+        # TODO: Add outlier detection in this plot: https://towardsdev.com/outlier-detection-using-k-means-clustering-in-python-214188fc90e8
+        # TODO: Only works where grading is discrete -1, 0, 1. Make continuous.
         for metric in self.metrics:
-            plt.figure(figsize=[10, 10])
+            plt.figure()
+            plt.rcParams['figure.figsize'] = [15.0, 15.0]
+            plt.rcParams['figure.dpi'] = 140
             color_indices = getattr(self.df,metric)+1
             plt.scatter(x, y, c=color_indices, cmap=colormap, alpha=0.3)
             plt.title(f'{metric} visualized in language using t-SNE')
             for j in range(len(x)):
                 plt.text(x=x[j]+0.3,y=y[j]+0.3,s=self.df.index[j])
+            if fig_path:
+                plt.savefig(fig_path[:-4]+f'_{metric}.png')
     def plot_named_clusters(self, fig_path = None, random_state = None):
         # Clusters identified visualized in language 2d using t-SNE
         # Requires that you first run make_clusters()
@@ -220,11 +246,11 @@ class OpenEndedAnswer:
         y = [y for x, y in vis_dims2]
         i = 0
 
-        font = {'size'   : 12}
-        matplotlib.rc('font', **font)
-        plt.figure(figsize=[10, 10])
-        # TODO: Modify this to plot arbitrary number
-        for category, color in enumerate(['purple', 'green', 'red', 'blue','black']):
+        # TODO: Modify this to plot arbitrary number. This only actually makes the same numer as the number of colors.
+        plt.figure()
+        plt.rcParams['figure.figsize'] = [15.0, 15.0]
+        plt.rcParams['figure.dpi'] = 140
+        for category, color in enumerate(['red', 'orange', 'green']):
             df_cluster = self.df[self.df.Cluster == category]
             xs = np.array(x)[self.df.Cluster == category]
             ys = np.array(y)[self.df.Cluster == category]
@@ -241,14 +267,3 @@ class OpenEndedAnswer:
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
-    def test_model(self,input_answer):
-        # Predict score of metrics for input_answer to the question
-        # Create embedding from input answer
-        input_embedding = get_embedding(input_answer, engine='text-embedding-ada-002')
-        
-        prediction = []
-        for i in range(len(self.metrics)):
-            prediction.append(self.rfr[i].predict([input_embedding]))
-            # mse = mean_squared_error(self.y_test[i], preds)
-            # mae = mean_absolute_error(self.y_test[i], preds)
-        return prediction
