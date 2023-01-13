@@ -25,9 +25,18 @@ df = df[['Question ID', 'Question', 'Answer',
          'Curiousity_optimum', 'Hunger_optimum', 'Smarts_optimum']]
 df = df.dropna()
 metrics = ['Curiousity_grade', 'Hunger_grade', 'Smarts_grade']
-# df.groupby('Question ID')
 
-# Create open_ended_answer object and run functions
+#%%Expirement with some vis tools
+import seaborn as sns; sns.set()
+
+pair_plots = sns.pairplot(df[df['Question ID'] == 1], height=4, 
+                          vars = ['Curiousity_grade', 'Hunger_grade', 'Smarts_grade'],
+                          diag_kind = None,
+                          kind = 'hist',
+                          corner = True);
+pair_plots.add_legend(title = 'Legend')
+
+#%% Create open_ended_answer object
 question = []
 ans = []
 for i in range(len(df['Question ID'].unique())):
@@ -35,15 +44,15 @@ for i in range(len(df['Question ID'].unique())):
     question.append(df['Question'][df.index[df['Question ID'] == q_ID].tolist()[0]])
     ans.append(open_ended_tools.OpenEndedAnswer(df[df['Question ID'] == q_ID], metrics))
     
-    ans[i].create_answer_model(directory+file[:-4]+f'_{q_ID}.csv', 
-                               random_state=random_state, 
-                               generate_embeddings=generate_embeddings)
-    ans[i].make_clusters(n_clusters=n_clusters, 
-                         random_state=random_state, 
-                         ans_per_cluster=1,
-                         cluster_description_file=directory+file[:-4]+f'_{q_ID}_cd.csv')
-    print(ans[i])
-    ans[i].plot_clusters(random_state=random_state, fig_path=directory+file[:-4]+f'_{q_ID}.png')
+    # ans[i].create_answer_model(directory+file[:-4]+f'_{q_ID}.csv', 
+    #                            random_state=random_state, 
+    #                            generate_embeddings=generate_embeddings)
+    # ans[i].make_clusters(n_clusters=n_clusters, 
+    #                      random_state=random_state, 
+    #                      ans_per_cluster=1,
+    #                      cluster_description_file=directory+file[:-4]+f'_{q_ID}_cd.csv')
+    # print(ans[i])
+    # ans[i].plot_clusters(random_state=random_state, fig_path=directory+file[:-4]+f'_{q_ID}.png')
 
 #%% Test the model with a sample answer not in the dataset which is correct.
 
