@@ -33,7 +33,7 @@ for i in range(len(df['Question ID'].unique())):
     q_ID = df['Question ID'].unique()[i]
     question.append(df['Question'][df.index[df['Question ID'] == q_ID].tolist()[0]])
     ans.append(open_ended_tools.OpenEndedAnswer(df[df['Question ID'] == q_ID], metrics))
-    
+
     ans[i].create_answer_model(directory+file[:-4]+f'_{q_ID}.csv', 
                                 random_state=random_state, 
                                 generate_embeddings=generate_embeddings)

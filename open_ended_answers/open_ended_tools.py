@@ -29,7 +29,7 @@ class OpenEndedAnswer:
         self.X_train = None
         self.X_test = None
         self.y_train = None
-        self.ytest = None
+        self.y_test = None
         self.rfr = None
         self.rfr = None
         
