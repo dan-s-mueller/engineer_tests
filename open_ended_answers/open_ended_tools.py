@@ -49,15 +49,16 @@ class OpenEndedAnswer:
         
         
         # Print the predictability of the model.
-        for i in range(len(self.metrics)):
-            preds = self.rfr[i].predict(self.X_test[i])
-            mse = mean_squared_error(self.y_test[i], preds)
-            mae = mean_absolute_error(self.y_test[i], preds)
-            str_out += f'Ada similarity embedding performance of {self.metrics[i]}: mse={mse:.2f}, mae={mae:.2f}\n'
+        # for i in range(len(self.metrics)):
+        #     preds = self.rfr[i].predict(self.X_test[i])
+        #     mse = mean_squared_error(self.y_test[i], preds)
+        #     mae = mean_absolute_error(self.y_test[i], preds)
+        #     str_out += f'Ada similarity embedding performance of {self.metrics[i]}: mse={mse:.2f}, mae={mae:.2f}\n'
         return str_out
 
     def create_answer_model(self, file, 
                             generate_embeddings=False, 
+                            embedding_model='text-embedding-ada-002',
                             random_state=None,
                             debug=False):
         # Creates an answer model by either generating embeddings, or using existing ones.
@@ -65,7 +66,6 @@ class OpenEndedAnswer:
 
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-            embedding_model = 'text-embedding-ada-002'
             self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
             # self.df = self.df.assign(embedding = self.df.Answer.apply(lambda x:
             #                                                  get_embedding(x, engine='text-embedding-ada-002')))
@@ -117,6 +117,24 @@ class OpenEndedAnswer:
                 print(
                     f"Dummy mean prediction performance for {metric}: mse={bmse:.2f}, mae={bmae:.2f}\n"
                 )
+    def create_metric_model(self, file,
+                            generate_embeddings=False, 
+                            embedding_model='text-embedding-ada-002'):
+        # TODO: This is currently just a copy of the create from the answer model
+        if generate_embeddings:
+            # Generates embeddings of each metric
+            self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            # self.df = self.df.assign(embedding = self.df.Answer.apply(lambda x:
+            #                                                  get_embedding(x, engine='text-embedding-ada-002')))
+            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
+            print('Embeddings created.')
+        else:
+            # Create trained model with graded answers and embeddings
+            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
+            self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
+            self.df['embedding'] = self.df.embedding.apply(
+                eval).apply(np.array)
+            print('Embeddings file read.')
     def test_model(self,input_answer):
         # Predict score of metrics for input_answer to the question
         # Create embedding from input answer
