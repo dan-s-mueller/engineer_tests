@@ -39,8 +39,8 @@ class OpenEndedAnswer:
 
     def __str__(self):            
         str_out = ''
-        # Print question ID and question. Also number of answers provided to train.
-        str_out += 'Question: '+str(self.df['Question ID'].iloc[0])+', '+self.df['Question'].iloc[0]+'\n'
+        # Print Question_ID and question. Also number of answers provided to train.
+        str_out += 'Question: '+str(self.df['Question_ID'].iloc[0])+', '+self.df['Question'].iloc[0]+'\n'
         str_out+= f'# of Answers in Model: {self.df.shape[0]}\n'
         
         # Print metrics and the number of clusters
@@ -261,7 +261,7 @@ class OpenEndedAnswer:
             plt.scatter(avg_x, avg_y, marker='x', color=color,
                         s=100, label=f'Cluster {i}')
             plt.legend()
-            # Apply data labels of the question ID to each datapoint.
+            # Apply data labels of the Question_ID to each datapoint.
             for j in range(len(xs)):
                 plt.text(x=xs[j]+0.3,y=ys[j]+0.3,s=df_cluster.index[j])
             i = i+1
