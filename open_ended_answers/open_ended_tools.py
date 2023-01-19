@@ -10,14 +10,13 @@ Must have API key set to run.
 import numpy as np
 import pandas as pd
 import openai
-from openai.embeddings_utils import get_embedding
+from openai.embeddings_utils import cosine_similarity, get_embedding
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
 import seaborn as sns; sns.set()
-
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -25,13 +24,6 @@ class OpenEndedAnswer:
     def __init__(self, df, metrics):
         self.df = df
         self.metrics = metrics
-                
-        self.X_train = None
-        self.X_test = None
-        self.y_train = None
-        self.y_test = None
-        self.rfr = None
-        self.rfr = None
         
         self.n_clusters = None
         self.cluster_descriptions = None
@@ -56,7 +48,7 @@ class OpenEndedAnswer:
         #     str_out += f'Ada similarity embedding performance of {self.metrics[i]}: mse={mse:.2f}, mae={mae:.2f}\n'
         return str_out
 
-    def create_answer_model(self, file, 
+    def generate_answer_embeddings(self, file, 
                             generate_embeddings=False, 
                             embedding_model='text-embedding-ada-002',
                             random_state=None,
@@ -67,65 +59,6 @@ class OpenEndedAnswer:
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-            # self.df = self.df.assign(embedding = self.df.Answer.apply(lambda x:
-            #                                                  get_embedding(x, engine='text-embedding-ada-002')))
-            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
-            print('Embeddings created.')
-        else:
-            # Create trained model with graded answers and embeddings
-            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
-            self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
-            self.df['embedding'] = self.df.embedding.apply(
-                eval).apply(np.array)
-            print('Embeddings file read.')
-
-        
-        self.X_train = []
-        self.X_test = []
-        self.y_train = []
-        self.y_test = []
-        self.rfr = []
-        # Loop through metrics and generate machine learning models for each of them per question.
-        for metric in self.metrics:
-            # Train model to predict categories
-            X_train, X_test, y_train, y_test = train_test_split(list(
-                self.df.embedding.values), 
-                getattr(self.df, metric), test_size=1, random_state=random_state)
-            
-            self.X_train.append(X_train)
-            self.X_test.append(X_test)
-            self.y_train.append(y_train)
-            self.y_test.append(y_test)
-
-            rfr_temp = RandomForestRegressor(n_estimators=100,
-                                             random_state=random_state)
-            rfr_temp.fit(X_train, y_train)
-            preds = rfr_temp.predict(X_test)
-            self.rfr.append(rfr_temp)
-
-            # Display some basic information about the predictability of the model for the metric.
-            if debug:
-                mse = mean_squared_error(y_test, preds)
-                mae = mean_absolute_error(y_test, preds)
-                print(
-                    f"Ada similarity embedding performance of {metric}: mse={mse:.2f}, mae={mae:.2f}")
-                
-                bmse = mean_squared_error(
-                    y_test, np.repeat(y_test.mean(), len(y_test)))
-                bmae = mean_absolute_error(
-                    y_test, np.repeat(y_test.mean(), len(y_test)))
-                print(
-                    f"Dummy mean prediction performance for {metric}: mse={bmse:.2f}, mae={bmae:.2f}\n"
-                )
-    def create_metric_model(self, file,
-                            generate_embeddings=False, 
-                            embedding_model='text-embedding-ada-002'):
-        # TODO: This is currently just a copy of the create from the answer model
-        if generate_embeddings:
-            # Generates embeddings of each metric
-            self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-            # self.df = self.df.assign(embedding = self.df.Answer.apply(lambda x:
-            #                                                  get_embedding(x, engine='text-embedding-ada-002')))
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
             print('Embeddings created.')
         else:
@@ -285,3 +218,37 @@ class OpenEndedAnswer:
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
+class OpenEndedMetric:
+    def __init__(self, df):
+        self.metric = df['Metric'].iloc[0]
+        self.df = df
+    def __str__(self):            
+        str_out = ''
+        # Print metrics dataframe
+        str_out += 'Metrics: '+str(self.df)+'\n'
+    def generate_metric_embeddings(self, file,
+                                   generate_embeddings=False, 
+                                   embedding_model='text-embedding-ada-002'):
+        # TODO: This is currently just a copy of the create from the answer model
+        if generate_embeddings:
+            # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
+            self.df = self.df.assign(embedding = self.df['Category_term'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
+            print('Embeddings created.')
+        else:
+            # Create trained model with graded answers and embeddings
+            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
+            self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
+            self.df['embedding'] = self.df.embedding.apply(
+                eval).apply(np.array)
+            print('Embeddings file read.')
+
+def metric_score(metObj,ansObj):
+    # for i in range(len(df_metrics['Metrics'].unique())):
+    data_out = []
+    for i in range(ansObj.df.shape[0]):
+        temp = [0]*3
+        for j in range(metObj.df.shape[0]):
+            temp[j] = cosine_similarity(ansObj.df['embedding'].iloc[i], metObj.df['embedding'].iloc[j])
+        data_out.append(temp)
+    return data_out
