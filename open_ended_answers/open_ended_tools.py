@@ -229,10 +229,10 @@ class OpenEndedMetric:
     def generate_metric_embeddings(self, file,
                                    generate_embeddings=False, 
                                    embedding_model='text-embedding-ada-002'):
-        # TODO: This is currently just a copy of the create from the answer model
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-            self.df = self.df.assign(embedding = self.df['Category_term'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            self.df = self.df.assign(embedding_pos = self.df['Category_term_pos'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            self.df = self.df.assign(embedding_neg = self.df['Category_term_neg'].apply(lambda x: get_embedding(x, engine=embedding_model)))
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
             print('Embeddings created.')
         else:
@@ -244,11 +244,13 @@ class OpenEndedMetric:
             print('Embeddings file read.')
 
 def metric_score(metObj,ansObj):
-    # for i in range(len(df_metrics['Metrics'].unique())):
+    # Calculates the cosine similarity between a metric and the answer
+    # More details here: https://community.openai.com/t/embeddings-and-cosine-similarity/17761/13
     data_out = []
     for i in range(ansObj.df.shape[0]):
         temp = [0]*3
         for j in range(metObj.df.shape[0]):
-            temp[j] = cosine_similarity(ansObj.df['embedding'].iloc[i], metObj.df['embedding'].iloc[j])
+            temp[j] = cosine_similarity(ansObj.df['embedding'].iloc[i], metObj.df['embedding_pos'].iloc[j])-cosine_similarity(ansObj.df['embedding'].iloc[i], metObj.df['embedding_neg'].iloc[j])
         data_out.append(temp)
+    data_out = data_out / np.amax(data_out)
     return data_out

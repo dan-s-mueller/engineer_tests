@@ -28,7 +28,7 @@ df = df[['Question_ID', 'Type', 'Question', 'Answer', 'Correct_answer',
 
 # metrics = ['Curiousity', 'Hunger', 'Smarts']
 df_metrics = pd.read_csv(directory+file_metrics, index_col=0)
-df_metrics = df_metrics[['Metric','Category_term']]
+df_metrics = df_metrics[['Metric','Category_term_pos','Category_term_neg']]
 metrics = df_metrics['Metric'].unique()
 
 
