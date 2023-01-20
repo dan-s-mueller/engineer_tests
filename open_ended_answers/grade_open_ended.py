@@ -28,7 +28,7 @@ df = df[['Question_ID', 'Type', 'Question', 'Answer', 'Correct_answer',
 
 # metrics = ['Curiousity', 'Hunger', 'Smarts']
 df_metrics = pd.read_csv(directory+file_metrics, index_col=0)
-df_metrics = df_metrics[['Metric','Category_term_pos','Category_term_neg']]
+df_metrics = df_metrics[['Metric','Category_term_short_pos','Category_term_pos','Category_term_neg']]
 metrics = df_metrics['Metric'].unique()
 
 
@@ -57,4 +57,9 @@ for i in range(len(df_metrics['Metric'].unique())):
                                       embedding_model=embedding_model)
 
 #%% Test out embeddings scoring
-score = open_ended_tools.metric_score(met[0],ans[0])
+# score = open_ended_tools.metric_score(met[0],ans[0])
+# print(score)
+
+for m in met:
+    for a in ans:
+        open_ended_tools.plot_embedding_metric_results(m, a, score = None, fig_path = directory)

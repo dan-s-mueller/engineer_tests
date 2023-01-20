@@ -19,6 +19,7 @@ from sklearn.manifold import TSNE
 import seaborn as sns; sns.set()
 import matplotlib
 import matplotlib.pyplot as plt
+import statistics
 
 class OpenEndedAnswer:
     def __init__(self, df, metrics):
@@ -218,6 +219,9 @@ class OpenEndedAnswer:
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
+    def plot_cluster_efficiency():
+        # TODO: Elbow plot or something like that
+        return False
 class OpenEndedMetric:
     def __init__(self, df):
         self.metric = df['Metric'].iloc[0]
@@ -228,29 +232,81 @@ class OpenEndedMetric:
         str_out += 'Metrics: '+str(self.df)+'\n'
     def generate_metric_embeddings(self, file,
                                    generate_embeddings=False, 
-                                   embedding_model='text-embedding-ada-002'):
+                                   embedding_model='text-embedding-ada-002',
+                                   question=False):
         if generate_embeddings:
-            # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-            self.df = self.df.assign(embedding_pos = self.df['Category_term_pos'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-            self.df = self.df.assign(embedding_neg = self.df['Category_term_neg'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
-            print('Embeddings created.')
+            if question:
+                #TODO: Generate a metric which includes the metric and the question.
+                print(False)
+            else:   
+                # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
+                self.df = self.df.assign(embedding_pos = self.df['Category_term_pos'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+                self.df = self.df.assign(embedding_neg = self.df['Category_term_neg'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+                self.df.to_csv(file[:-4]+'_with_embeddings.csv')
+                print(f'Embeddings created for {self.df.Metric.iloc[0]} category terms.')
         else:
-            # Create trained model with graded answers and embeddings
-            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
-            self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
-            self.df['embedding'] = self.df.embedding.apply(
-                eval).apply(np.array)
-            print('Embeddings file read.')
+            if question:
+                #TODO: Generate a metric which includes the metric and the question.
+                print(False)
+            else:
+                # Create trained model with graded answers and embeddings
+                # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
+                self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
+                self.df['embedding'] = self.df.embedding.apply(
+                    eval).apply(np.array)
+                print(f'Embeddings file read for {self.df.Metric.iloc[0]} category terms.')
 
 def metric_score(metObj,ansObj):
     # Calculates the cosine similarity between a metric and the answer
     # More details here: https://community.openai.com/t/embeddings-and-cosine-similarity/17761/13
     data_out = []
     for i in range(ansObj.df.shape[0]):
-        temp = [0]*3
+        temp = [0]*metObj.df.shape[0]
         for j in range(metObj.df.shape[0]):
             temp[j] = cosine_similarity(ansObj.df['embedding'].iloc[i], metObj.df['embedding_pos'].iloc[j])-cosine_similarity(ansObj.df['embedding'].iloc[i], metObj.df['embedding_neg'].iloc[j])
         data_out.append(temp)
     data_out = data_out / np.amax(data_out)
     return data_out
+def plot_embedding_metric_results(metObj, ansObj, score = None, fig_path = None):
+    idx_sorted = np.argsort(getattr(ansObj.df,metObj.df['Metric'].iloc[0]))
+    score_averages = []
+    score_error = []
+    if not score:
+        score = metric_score(metObj,ansObj)
+    score = score[idx_sorted]
+    for ans_score in score:
+        score_averages.append(statistics.mean(ans_score))
+        score_error.append((max(ans_score)-min(ans_score))/2)
+
+    score_diff = score_averages - getattr(ansObj.df,metObj.df['Metric'].iloc[0])
+
+    # Sort the answers to show lowest to highest metric grade
+    x_label_sort = list(map(str, ansObj.df['ID'].iloc[idx_sorted].to_numpy()))
+    ansObj.df = ansObj.df.iloc[idx_sorted]
+    
+
+    # Build the bar plot
+    fig, ax = plt.subplots(figsize=(15,5))
+    ax.bar(x_label_sort, score_averages, yerr=score_error, align='center', ecolor='black')
+    ax.set_ylabel('Metric correlation')
+    ax.set_xticks(x_label_sort)
+    ax.set_xticklabels(x_label_sort)
+    ax.set_title(f'Metric correlation: Question {ansObj.df.Question_ID.iloc[0]}, Metric {metObj.df.Metric.iloc[0]}')
+    ax.yaxis.grid(True)
+    # Overlay the anticipated scoring I did manually
+    ax.scatter(x_label_sort, getattr(ansObj.df,metObj.df['Metric'].iloc[0]), color='k', label='Manual Grading')
+    plt.savefig(fig_path+f'embedding_metric_correlation_qID{ansObj.df.Question_ID.iloc[0]}_{metObj.df.Metric.iloc[0]}.png')    
+    plt.show()
+
+    # Plot the difference between embeddings with zero shot and manual grading
+    fig, ax = plt.subplots(figsize=(15,5))
+    ax.bar(x_label_sort, score_diff, label='Manual Grading')
+    ax.set_ylabel('Zero shot - manual correlation')
+    ax.set_xticks(x_label_sort)
+    ax.set_xticklabels(x_label_sort)
+    ax.set_title(f'Zero shot - manual correlation: {ansObj.df.Question_ID.iloc[0]}, Metric {metObj.df.Metric.iloc[0]}')
+    ax.yaxis.grid(True)
+    # Overlay the anticipated scoring I did manually
+    ax.scatter(x_label_sort, getattr(ansObj.df,metObj.df['Metric'].iloc[0]), color='k', label='Manual Grading')
+    plt.savefig(fig_path+f'zero_shot_to_manual_qID{ansObj.df.Question_ID.iloc[0]}_{metObj.df.Metric.iloc[0]}.png')    
+    plt.show()
