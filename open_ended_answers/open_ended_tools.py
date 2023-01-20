@@ -253,13 +253,15 @@ class OpenEndedMetric:
         if generate_embeddings: 
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             question = ansObj.df['Question'].iloc[0]
-            self.df['embedding_pos'] = []
-            self.df['embedding_neg'] = []
+            embedding_pos = []
+            embedding_neg = []
             for i in range(self.df.shape[0]):
-                met_question_embedding_pos = f'A {self.df.Category_term_pos.iloc[i]} answer to the following interview question:\n{question}\n'
-                met_question_embedding_neg = f'A {self.df.Category_term_neg.iloc[i]} answer to the following interview question:\n{question}\n'
-                self.df['embedding_pos'][i] = get_embedding(met_question_embedding_pos, engine=embedding_model)
-                self.df['embedding_neg'][i] = get_embedding(met_question_embedding_neg, engine=embedding_model)
+                self.df['Category_term_pos'].iloc[i] = f'A {self.df.Category_term_short_pos.iloc[i]} answer to the following interview question:\n{question}\n'
+                self.df['Category_term_neg'].iloc[i] = f'A {self.df.Category_term_short_neg.iloc[i]} answer to the following interview question:\n{question}\n'
+                embedding_pos.append(get_embedding(self.df['Category_term_pos'].iloc[i], engine=embedding_model))
+                embedding_neg.append(get_embedding(self.df['Category_term_neg'].iloc[i], engine=embedding_model))
+            self.df['embedding_pos'] = embedding_pos
+            self.df['embedding_neg'] = embedding_neg
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
             print(f'Question specific embeddings created for {self.df.Metric.iloc[0]} category terms.')
         else:
