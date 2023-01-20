@@ -46,20 +46,32 @@ for i in range(len(df['Question_ID'].unique())):
                                       embedding_model=embedding_model)
     print(ans[i])
     
-#%% Create metric embeddings
+#%% Create raw metric embeddings
 met = []
 for i in range(len(df_metrics['Metric'].unique())):
     met_name = df_metrics['Metric'].unique()[i]
     met.append(open_ended_tools.OpenEndedMetric(df_metrics[df_metrics['Metric'] == met_name]))
 
-    met[i].generate_metric_embeddings(directory+file_metrics,
-                                      generate_embeddings=True, 
-                                      embedding_model=embedding_model)
+    met[i].generate_metric_raw_embeddings(directory+file_metrics,
+                                          generate_embeddings=True, 
+                                          embedding_model=embedding_model)
 
 #%% Test out embeddings scoring
 # score = open_ended_tools.metric_score(met[0],ans[0])
 # print(score)
+run = False
+if run:
+    for m in met:
+        for a in ans:
+            open_ended_tools.plot_embedding_metric_results(m, a, score = None, fig_path = directory)
 
-for m in met:
-    for a in ans:
-        open_ended_tools.plot_embedding_metric_results(m, a, score = None, fig_path = directory)
+#%% Create question specific metric embeddings
+met_qs = []
+for i in range(len(df_metrics['Metric'].unique())):
+    met_name = df_metrics['Metric'].unique()[i]
+    met_qs.append(open_ended_tools.OpenEndedMetric(df_metrics[df_metrics['Metric'] == met_name]))
+
+    
+    met_qs[i].generate_metric_question_embeddings(ans[0], directory+file_metrics,
+                                      generate_embeddings=True, 
+                                      embedding_model=embedding_model)

@@ -230,31 +230,46 @@ class OpenEndedMetric:
         str_out = ''
         # Print metrics dataframe
         str_out += 'Metrics: '+str(self.df)+'\n'
-    def generate_metric_embeddings(self, file,
+    def generate_metric_raw_embeddings(self, file,
                                    generate_embeddings=False, 
-                                   embedding_model='text-embedding-ada-002',
-                                   question=False):
-        if generate_embeddings:
-            if question:
-                #TODO: Generate a metric which includes the metric and the question.
-                print(False)
-            else:   
-                # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-                self.df = self.df.assign(embedding_pos = self.df['Category_term_pos'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-                self.df = self.df.assign(embedding_neg = self.df['Category_term_neg'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-                self.df.to_csv(file[:-4]+'_with_embeddings.csv')
-                print(f'Embeddings created for {self.df.Metric.iloc[0]} category terms.')
+                                   embedding_model='text-embedding-ada-002'):
+        if generate_embeddings: 
+            # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
+            self.df = self.df.assign(embedding_pos = self.df['Category_term_pos'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            self.df = self.df.assign(embedding_neg = self.df['Category_term_neg'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
+            print(f'Embeddings created for {self.df.Metric.iloc[0]} category terms.')
         else:
-            if question:
-                #TODO: Generate a metric which includes the metric and the question.
-                print(False)
-            else:
-                # Create trained model with graded answers and embeddings
-                # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
-                self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
-                self.df['embedding'] = self.df.embedding.apply(
-                    eval).apply(np.array)
-                print(f'Embeddings file read for {self.df.Metric.iloc[0]} category terms.')
+            # TODO: no clue if this works
+            # Create trained model with graded answers and embeddings
+            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
+            self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
+            self.df['embedding'] = self.df.embedding.apply(
+                eval).apply(np.array)
+            print(f'Embeddings file read for {self.df.Metric.iloc[0]} category terms.')
+    def generate_metric_question_embeddings(self, ansObj, file,
+                                   generate_embeddings=False, 
+                                   embedding_model='text-embedding-ada-002',):
+        if generate_embeddings: 
+            # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
+            question = ansObj.df['Question'].iloc[0]
+            self.df['embedding_pos'] = []
+            self.df['embedding_neg'] = []
+            for i in range(self.df.shape[0]):
+                met_question_embedding_pos = f'A {self.df.Category_term_pos.iloc[i]} answer to the following interview question:\n{question}\n'
+                met_question_embedding_neg = f'A {self.df.Category_term_neg.iloc[i]} answer to the following interview question:\n{question}\n'
+                self.df['embedding_pos'][i] = get_embedding(met_question_embedding_pos, engine=embedding_model)
+                self.df['embedding_neg'][i] = get_embedding(met_question_embedding_neg, engine=embedding_model)
+            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
+            print(f'Question specific embeddings created for {self.df.Metric.iloc[0]} category terms.')
+        else:
+            # TODO: no clue if this works
+            # Create trained model with graded answers and embeddings
+            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
+            self.df = pd.read_csv(file[:-4]+f'_qID_{ansObj.df.Question_ID.iloc[0]}_with_embeddings.csv')
+            self.df['embedding'] = self.df.embedding.apply(
+                eval).apply(np.array)
+            print(f'Embeddings file read for {self.df.Metric.iloc[0]} category terms.')
 
 def metric_score(metObj,ansObj):
     # Calculates the cosine similarity between a metric and the answer
