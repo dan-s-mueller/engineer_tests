@@ -15,6 +15,7 @@ import seaborn as sns; sns.set()
 import matplotlib
 import matplotlib.pyplot as plt
 import statistics
+import k_means_custom
 
 class OpenEndedAnswer:
     """ An open ended answer object. """
@@ -148,7 +149,6 @@ class OpenEndedAnswer:
 
         # Generate clusters
         matrix = np.vstack(self.df.embedding.values)
-        matrix.shape
         self.matrix = matrix
         self.n_clusters = n_clusters
         kmeans = KMeans(n_clusters=n_clusters, init="k-means++",
@@ -277,8 +277,32 @@ class OpenEndedAnswer:
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
-    def plot_cluster_efficiency():
+    def plot_cluster_efficiency(self):
         # TODO: Elbow plot or something like that
+        # How to use chooseBestKforKMeans
+
+        # choose features
+        self.matrix.fillna(0,inplace=True)
+        
+        # create data matrix
+        data_matrix = np.matrix(data_for_clustering).astype(float)
+        # scale the data
+        from sklearn.preprocessing import MinMaxScaler
+        mms = MinMaxScaler()
+        scaled_data = mms.fit_transform(data_matrix)
+        
+        # choose k range
+        k_range=range(2,20)
+        # compute adjusted intertia
+        best_k, results = chooseBestKforKMeansParallel(scaled_data, k_range)
+        
+        # plot the results
+        plt.figure(figsize=(7,4))
+        plt.plot(results,'o')
+        plt.title('Adjusted Inertia for each K')
+        plt.xlabel('K')
+        plt.ylabel('Adjusted Inertia')
+        plt.xticks(range(2,20,1))
         return False
 class OpenEndedMetric:
     """ An open ended metric object, which is intended to be used with zero shot approach """
@@ -341,7 +365,6 @@ class OpenEndedMetric:
             self.df['embedding'] = self.df.embedding.apply(
                 eval).apply(np.array)
             print(f'Embeddings file read for {self.df.Metric.iloc[0]} category terms.')
-
 def metric_score(metObj,ansObj):
     """ Calculates the cosine similarity between a metric and the answer
         More details here: https://community.openai.com/t/embeddings-and-cosine-similarity/17761/13 """
@@ -419,10 +442,10 @@ def make_answers(df,q_ID=None,n_answers=1):
                             frequency_penalty=2,
                             presence_penalty=2)
                 print(j)
-                print(response['choices'][0]['text'])
+                print(response['choices'][0]['text'].replace('\n', ''))
                 question_IDs.append(df['Question_ID'].unique()[i])
                 questions.append(df_temp['Question'].iloc[i])
-                responses.append(response['choices'][0]['text'])
+                responses.append(response['choices'][0]['text'].replace('\n', ''))
         df_new_ans = df_new_ans.assign(Question_ID = question_IDs)
         df_new_ans = df_new_ans.assign(Question = questions)
         df_new_ans = df_new_ans.assign(Answers = responses)
@@ -438,8 +461,8 @@ def make_answers(df,q_ID=None,n_answers=1):
                         frequency_penalty=2,
                         presence_penalty=2)
             print(j)
-            print(response['choices'][0]['text'])
-            responses.append(response['choices'][0]['text'])
+            print(response['choices'][0]['text'].replace('\n', ''))
+            responses.append(response['choices'][0]['text'].replace('\n', ''))
         df_new_ans = df_new_ans.assign(Answers = responses)
         df_new_ans = df_new_ans.assign(Question_ID = q_ID)
         df_new_ans = df_new_ans.assign(Question = df['Question'].iloc[0])
