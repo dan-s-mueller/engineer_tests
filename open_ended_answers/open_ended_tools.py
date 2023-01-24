@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 import statistics
 
 class OpenEndedAnswer:
+    """ An open ended answer object. """
     def __init__(self, df, metrics):
         self.df = df
         self.metrics = metrics
@@ -30,7 +31,8 @@ class OpenEndedAnswer:
         self.cluster_descriptions = None
         self.matrix = None
 
-    def __str__(self):            
+    def __str__(self):       
+        """ Prints out key info about the OpenEndedAnswer object."""
         str_out = ''
         # Print Question_ID and question. Also number of answers provided to train.
         str_out += 'Question: '+str(self.df['Question_ID'].iloc[0])+', '+self.df['Question'].iloc[0]+'\n'
@@ -40,13 +42,6 @@ class OpenEndedAnswer:
         str_out += 'Metrics: '+str(self.metrics)+'\n'
         str_out += f'# of Clusters: {self.n_clusters}\n'
         
-        
-        # Print the predictability of the model.
-        # for i in range(len(self.metrics)):
-        #     preds = self.rfr[i].predict(self.X_test[i])
-        #     mse = mean_squared_error(self.y_test[i], preds)
-        #     mae = mean_absolute_error(self.y_test[i], preds)
-        #     str_out += f'Ada similarity embedding performance of {self.metrics[i]}: mse={mse:.2f}, mae={mae:.2f}\n'
         return str_out
 
     def generate_answer_embeddings(self, file, 
@@ -54,8 +49,8 @@ class OpenEndedAnswer:
                             embedding_model='text-embedding-ada-002',
                             random_state=None,
                             debug=False):
-        # Creates an answer model by either generating embeddings, or using existing ones.
-        # Outputs a RandomForestRegressor object which can be used to predict categories by metric.
+        """ Creates an answer model by either generating embeddings, or using existing ones.
+            Outputs a RandomForestRegressor object which can be used to predict categories by metric. """
 
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
@@ -70,8 +65,8 @@ class OpenEndedAnswer:
                 eval).apply(np.array)
             print('Embeddings file read.')
     def test_model(self,input_answer):
-        # Predict score of metrics for input_answer to the question
-        # Create embedding from input answer
+        """ Predict score of metrics for input_answer to the question """
+        #  Create embedding from input answer
         input_embedding = get_embedding(input_answer, engine='text-embedding-ada-002')
         
         prediction = []
@@ -85,6 +80,7 @@ class OpenEndedAnswer:
                       ans_per_cluster=3, 
                       cluster_description_file=None,
                       debug=False):
+        """ Creates named clusters based on a number of clusters requested """
         # Name the clusters with openai and show the similar answers
         self.n_clusters = n_clusters
 
@@ -148,7 +144,7 @@ class OpenEndedAnswer:
         if cluster_description_file:
             self.cluster_descriptions.to_csv(cluster_description_file)
     def plot_pairs(self, fig_path = None):
-        # Create a pairplot to visualize the scores of answers
+        """ Create a pairplot to visualize the scores of answers """
         pair_plot = sns.pairplot(self.df, height=5, 
                                  vars = self.metrics,
                                  diag_kind = None,
@@ -158,7 +154,7 @@ class OpenEndedAnswer:
         if fig_path:
             pair_plot.savefig(fig_path)
     def plot_graded_clusters(self, fig_path = None, random_state=None):
-        # Plots embeddings colored by rating. Generates 1 x plot per metric.
+        """ Plots embeddings colored by rating. Generates 1 x plot per metric. """
         
         # Commented out line was in ther example, but I think it doesn't work.
         # matrix = np.array(self.df.embedding.apply(eval).to_list())
@@ -187,7 +183,7 @@ class OpenEndedAnswer:
             if fig_path:
                 plt.savefig(fig_path[:-4]+f'_{metric}.png')
     def plot_named_clusters(self, fig_path = None, random_state = None):
-        # Clusters identified visualized in language 2d using t-SNE
+        """ Clusters identified visualized in language 2d using t-SNE """
         # Requires that you first run make_clusters()
         tsne = TSNE(
             n_components=2, perplexity=15, random_state=random_state, init="random", learning_rate=200
@@ -223,16 +219,19 @@ class OpenEndedAnswer:
         # TODO: Elbow plot or something like that
         return False
 class OpenEndedMetric:
+    """ An open ended metric object, which is intended to be used with zero shot approach """
     def __init__(self, df):
         self.metric = df['Metric'].iloc[0]
         self.df = df
     def __str__(self):            
+        """ Prints out key info for OpenEndedMetric """
         str_out = ''
         # Print metrics dataframe
         str_out += 'Metrics: '+str(self.df)+'\n'
     def generate_metric_raw_embeddings(self, file,
                                    generate_embeddings=False, 
                                    embedding_model='text-embedding-ada-002'):
+        """ Generates raw embeddings for exactly the metric as-written. Is not question specific """
         if generate_embeddings: 
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             self.df = self.df.assign(embedding_pos = self.df['Category_term_pos'].apply(lambda x: get_embedding(x, engine=embedding_model)))
@@ -250,6 +249,8 @@ class OpenEndedMetric:
     def generate_metric_question_embeddings(self, ansObj, file,
                                    generate_embeddings=False, 
                                    embedding_model='text-embedding-ada-002',):
+        """ Generates embeddings for the metric as-written in the context of the question to compare against.
+            Is question specific """
         if generate_embeddings: 
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             question = ansObj.df['Question'].iloc[0]
@@ -274,8 +275,8 @@ class OpenEndedMetric:
             print(f'Embeddings file read for {self.df.Metric.iloc[0]} category terms.')
 
 def metric_score(metObj,ansObj):
-    # Calculates the cosine similarity between a metric and the answer
-    # More details here: https://community.openai.com/t/embeddings-and-cosine-similarity/17761/13
+    """ Calculates the cosine similarity between a metric and the answer
+        More details here: https://community.openai.com/t/embeddings-and-cosine-similarity/17761/13 """
     data_out = []
     for i in range(ansObj.df.shape[0]):
         temp = [0]*metObj.df.shape[0]
@@ -285,6 +286,7 @@ def metric_score(metObj,ansObj):
     data_out = data_out / np.amax(data_out)
     return data_out
 def plot_embedding_metric_results(metObj, ansObj, score = None, fig_path = None):
+    """ Creates plots of metric_score results, which are used to compare manual scoring """
     idx_sorted = np.argsort(getattr(ansObj.df,metObj.df['Metric'].iloc[0]))
     score_averages = []
     score_error = []
