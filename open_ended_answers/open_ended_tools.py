@@ -11,6 +11,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
+from sklearn import metrics
+from scipy.spatial.distance import cdist
 import seaborn as sns; sns.set()
 import matplotlib
 import matplotlib.pyplot as plt
@@ -35,6 +37,8 @@ class OpenEndedAnswer:
         self.rfr = None
         
         self.n_clusters = None
+        self.cluster_best_k = None
+        self.cluster_inertia_results = None
         self.cluster_descriptions = None
         self.matrix = None
     def __str__(self):       
@@ -61,19 +65,12 @@ class OpenEndedAnswer:
                             random_state=None,
                             debug=False,
                             embedding_model='text-embedding-ada-002'):
-        # Creates an answer model by either generating embeddings, or using existing ones.
-        # Outputs a RandomForestRegressor object which can be used to predict categories by metric.
-
-        if generate_embeddings:
-            # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-            self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
-        else:
-            # Create trained model with graded answers and embeddings
-            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
-            self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
-            self.df['embedding'] = self.df.embedding.apply(
-                eval).apply(np.array)
+        ''' Creates an answer model by either generating embeddings, or using existing ones.
+            Outputs a RandomForestRegressor object which can be used to predict categories by metric.'''
+        self.generate_answer_embeddings(file, 
+                                generate_embeddings=generate_embeddings, 
+                                embedding_model=embedding_model,
+                                random_state=random_state)
         self.X_train = []
         self.X_test = []
         self.y_train = []
@@ -142,15 +139,18 @@ class OpenEndedAnswer:
                       random_state=None, 
                       ans_per_cluster=3, 
                       cluster_description_file=None,
+                      use_optimal_k = False,
                       debug=False):
         """ Creates named clusters based on a number of clusters requested """
-        # Name the clusters with openai and show the similar answers
-        self.n_clusters = n_clusters
-
         # Generate clusters
         matrix = np.vstack(self.df.embedding.values)
         self.matrix = matrix
-        self.n_clusters = n_clusters
+        self.cluster_best_k, self.cluster_inertia_results = self.plot_cluster_efficiency(alpha_k=0.03)
+        if use_optimal_k:
+            self.n_clusters = self.cluster_best_k
+        else:
+            self.n_clusters = n_clusters
+            
         kmeans = KMeans(n_clusters=n_clusters, init="k-means++",
                         random_state=random_state, n_init=10)
         kmeans.fit(matrix)
@@ -163,7 +163,7 @@ class OpenEndedAnswer:
 
         responses = []
         example_answers = []
-        # Reading a review which belong to each group.
+        # Reading an answer which belong to each cluster.
         for i in range(n_clusters):
             if debug:
                 print(f"Cluster {i} Theme:", end=" ")
@@ -205,16 +205,6 @@ class OpenEndedAnswer:
                                                   'example_answers': example_answers})
         if cluster_description_file:
             self.cluster_descriptions.to_csv(cluster_description_file)
-    def plot_pairs(self, fig_path = None):
-        """ Create a pairplot to visualize the scores of answers """
-        pair_plot = sns.pairplot(self.df, height=5, 
-                                 vars = self.metrics,
-                                 diag_kind = None,
-                                 kind = 'hist',
-                                 corner = True)
-        
-        if fig_path:
-            pair_plot.savefig(fig_path)
     def plot_graded_clusters(self, fig_path = None, random_state=None):
         """ Plots embeddings colored by rating. Generates 1 x plot per metric. """
         
@@ -254,18 +244,17 @@ class OpenEndedAnswer:
 
         x = [x for x, y in vis_dims2]
         y = [y for x, y in vis_dims2]
-        i = 0
-
+        
         # TODO: Modify this to plot arbitrary number. This only actually makes the same numer as the number of colors.
-        plt.figure()
-        plt.rcParams['figure.figsize'] = [15.0, 15.0]
-        plt.rcParams['figure.dpi'] = 140
-        for category, color in enumerate(['red', 'orange', 'green']):
-            df_cluster = self.df[self.df.Cluster == category]
-            xs = np.array(x)[self.df.Cluster == category]
-            ys = np.array(y)[self.df.Cluster == category]
+        plt.figure(figsize=(8,8),dpi=140)
+        color = list(np.random.random(size=3) * 256)
+        for i in range(self.n_clusters):
+        # for category, color in enumerate(['red', 'orange', 'green']):
+            df_cluster = self.df[self.df.Cluster == i]
+            xs = np.array(x)[self.df.Cluster == i]
+            ys = np.array(y)[self.df.Cluster == i]
             # Plot datapoints. Plot mean data.
-            plt.scatter(xs, ys, color=color, alpha=0.3)
+            plt.scatter(xs, ys, color=color[i], alpha=0.3)
             avg_x = xs.mean()
             avg_y = ys.mean()
             plt.scatter(avg_x, avg_y, marker='x', color=color,
@@ -277,33 +266,41 @@ class OpenEndedAnswer:
             i = i+1
         if fig_path:
             plt.savefig(fig_path)
-    def plot_cluster_efficiency(self):
-        # TODO: Elbow plot or something like that
-        # How to use chooseBestKforKMeans
-
-        # choose features
-        self.matrix.fillna(0,inplace=True)
-        
-        # create data matrix
-        data_matrix = np.matrix(data_for_clustering).astype(float)
-        # scale the data
+    def plot_cluster_efficiency(self, fig_path = None, max_k=20, alpha_k=0.02):        
+        ''' Use the scaled-inertia approach to plot number of clusters needed
+            Comes from https://towardsdatascience.com/an-approach-for-choosing-number-of-clusters-for-k-means-c28e614ecb2c.'''
+        # Scale the data
         from sklearn.preprocessing import MinMaxScaler
         mms = MinMaxScaler()
-        scaled_data = mms.fit_transform(data_matrix)
+        # self.matrix.fillna(0,inplace=True)
+        scaled_data = mms.fit_transform(self.matrix)
         
         # choose k range
         k_range=range(2,20)
         # compute adjusted intertia
-        best_k, results = chooseBestKforKMeansParallel(scaled_data, k_range)
+        best_k, results = k_means_custom.chooseBestKforKMeans(scaled_data, k_range, alpha_k=alpha_k)
         
         # plot the results
-        plt.figure(figsize=(7,4))
+        plt.figure(figsize=(8,8),dpi=140)
         plt.plot(results,'o')
-        plt.title('Adjusted Inertia for each K')
+        plt.title(f'Adjusted Inertia for each K, Question {self.df.Question_ID.iloc[0]}')
         plt.xlabel('K')
         plt.ylabel('Adjusted Inertia')
         plt.xticks(range(2,20,1))
-        return False
+        if fig_path:
+            plt.savefig(fig_path)
+            
+        return best_k, results
+    def plot_pairs(self, fig_path = None):
+        """ Create a pairplot to visualize the scores of answers """
+        pair_plot = sns.pairplot(self.df, height=5, 
+                                 vars = self.metrics,
+                                 diag_kind = None,
+                                 kind = 'hist',
+                                 corner = True)
+        
+        if fig_path:
+            pair_plot.savefig(fig_path)
 class OpenEndedMetric:
     """ An open ended metric object, which is intended to be used with zero shot approach """
     def __init__(self, df):
@@ -395,7 +392,7 @@ def plot_embedding_metric_results(metObj, ansObj, score = None, fig_path = None)
     ansObj.df = ansObj.df.iloc[idx_sorted]
     
     # Build the bar plot
-    fig, ax = plt.subplots(figsize=(15,5))
+    fig, ax = plt.subplots(figsize=(8,8),dpi=140)
     ax.bar(x_label_sort, score_averages, yerr=score_error, align='center', ecolor='black')
     ax.set_ylabel('Metric correlation')
     ax.set_xticks(x_label_sort)
@@ -408,7 +405,7 @@ def plot_embedding_metric_results(metObj, ansObj, score = None, fig_path = None)
     plt.show()
 
     # Plot the difference between embeddings with zero shot and manual grading
-    fig, ax = plt.subplots(figsize=(15,5))
+    fig, ax = plt.subplots(figsize=(8,8),dpi=140)
     ax.bar(x_label_sort, score_diff, label='Manual Grading')
     ax.set_ylabel('Zero shot - manual correlation')
     ax.set_xticks(x_label_sort)

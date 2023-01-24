@@ -13,7 +13,7 @@ import open_ended_tools
 directory = './Data/'
 file_answers = 'open_ended_answers.csv'
 file_metrics = 'metrics_question_specific.csv'
-generate_embeddings = False
+generate_embeddings = True
 embedding_model='text-embedding-ada-002'
 n_clusters = 3  # Determined the number of clusters to use
 random_state = 40   # Set to none to truly randomize. 42 used in code to reproduce samples to what is in openai docs.
@@ -53,12 +53,12 @@ for i in range(len(df['Question_ID'].unique())):
 for i in range(len(df['Question_ID'].unique())):    
     q_ID = df['Question_ID'].unique()[i]
     ans[i].plot_pairs(fig_path=directory+file_answers[:-4]+f'_pp_{q_ID}.png')
-    ans[i].plot_graded_clusters(random_state=random_state,
-                                fig_path=directory+file_answers[:-4]+f'_graded_{q_ID}.png')
     ans[i].make_named_clusters(n_clusters=n_clusters, 
                                random_state=random_state, 
                                ans_per_cluster=1,
                                cluster_description_file=directory+file_answers[:-4]+f'_{q_ID}_cd.csv')
+    ans[i].plot_graded_clusters(random_state=random_state,
+                                fig_path=directory+file_answers[:-4]+f'_graded_{q_ID}.png')
     ans[i].plot_named_clusters(random_state=random_state, fig_path=directory+file_answers[:-4]+f'_{q_ID}.png')
     
 #%% Create question specific metric embeddings, score them and compre to manual grading.

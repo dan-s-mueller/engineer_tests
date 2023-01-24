@@ -31,7 +31,7 @@ def kMeansRes(scaled_data, k, alpha_k=0.02):
     scaled_inertia = kmeans.inertia_ / inertia_o + alpha_k * k
     return scaled_inertia
 
-def chooseBestKforKMeansParallel(scaled_data, k_range):
+def chooseBestKforKMeans(scaled_data, k_range, alpha_k = 0.02):
     '''
     Parameters 
     ----------
@@ -48,8 +48,10 @@ def chooseBestKforKMeansParallel(scaled_data, k_range):
         adjusted inertia value for each k in k_range
     '''
     
-    ans = Parallel(n_jobs=-1,verbose=10)(delayed(kMeansRes)(scaled_data, k) for k in k_range)
-    ans = list(zip(k_range,ans))
+    ans = []
+    for k in k_range:
+        scaled_inertia = kMeansRes(scaled_data, k, alpha_k=alpha_k)
+        ans.append((k, scaled_inertia))
     results = pd.DataFrame(ans, columns = ['k','Scaled Inertia']).set_index('k')
     best_k = results.idxmin()[0]
     return best_k, results
