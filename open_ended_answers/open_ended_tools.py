@@ -30,7 +30,17 @@ class OpenEndedAnswer:
         self.n_clusters = None
         self.cluster_descriptions = None
         self.matrix = None
-
+        
+        self.X_train = None
+        self.X_test = None
+        self.y_train = None
+        self.y_test = None
+        self.rfr = None
+        self.rfr = None
+        
+        self.n_clusters = None
+        self.cluster_descriptions = None
+        self.matrix = None
     def __str__(self):       
         """ Prints out key info about the OpenEndedAnswer object."""
         str_out = ''
@@ -39,19 +49,83 @@ class OpenEndedAnswer:
         str_out+= f'# of Answers in Model: {self.df.shape[0]}\n'
         
         # Print metrics and the number of clusters
+        # TODO: Add a case statement to only do this and next block if specified.
         str_out += 'Metrics: '+str(self.metrics)+'\n'
         str_out += f'# of Clusters: {self.n_clusters}\n'
         
+        # Print the predictability of the model.
+        for i in range(len(self.metrics)):
+            preds = self.rfr[i].predict(self.X_test[i])
+            mse = mean_squared_error(self.y_test[i], preds)
+            mae = mean_absolute_error(self.y_test[i], preds)
+            str_out += f'Ada similarity embedding performance of {self.metrics[i]}: mse={mse:.2f}, mae={mae:.2f}\n'
         return str_out
+    def create_answer_model(self, file, 
+                            generate_embeddings=False, 
+                            random_state=None,
+                            debug=False):
+        # Creates an answer model by either generating embeddings, or using existing ones.
+        # Outputs a RandomForestRegressor object which can be used to predict categories by metric.
 
+        if generate_embeddings:
+            # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
+            embedding_model = 'text-embedding-ada-002'
+            self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
+            # self.df = self.df.assign(embedding = self.df.Answer.apply(lambda x:
+            #                                                  get_embedding(x, engine='text-embedding-ada-002')))
+            self.df.to_csv(file[:-4]+'_with_embeddings.csv')
+            print('Embeddings created.')
+        else:
+            # Create trained model with graded answers and embeddings
+            # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
+            self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
+            self.df['embedding'] = self.df.embedding.apply(
+                eval).apply(np.array)
+            print('Embeddings file read.')
+
+        self.X_train = []
+        self.X_test = []
+        self.y_train = []
+        self.y_test = []
+        self.rfr = []
+        # Loop through metrics and generate machine learning models for each of them per question.
+        for metric in self.metrics:
+            # Train model to predict categories
+            X_train, X_test, y_train, y_test = train_test_split(list(
+                self.df.embedding.values), 
+                getattr(self.df, metric), test_size=1, random_state=random_state)
+            
+            self.X_train.append(X_train)
+            self.X_test.append(X_test)
+            self.y_train.append(y_train)
+            self.y_test.append(y_test)
+
+            rfr_temp = RandomForestRegressor(n_estimators=100,
+                                             random_state=random_state)
+            rfr_temp.fit(X_train, y_train)
+            preds = rfr_temp.predict(X_test)
+            self.rfr.append(rfr_temp)
+
+            # Display some basic information about the predictability of the model for the metric.
+            if debug:
+                mse = mean_squared_error(y_test, preds)
+                mae = mean_absolute_error(y_test, preds)
+                print(
+                    f"Ada similarity embedding performance of {metric}: mse={mse:.2f}, mae={mae:.2f}")
+                
+                bmse = mean_squared_error(
+                    y_test, np.repeat(y_test.mean(), len(y_test)))
+                bmae = mean_absolute_error(
+                    y_test, np.repeat(y_test.mean(), len(y_test)))
+                print(
+                    f"Dummy mean prediction performance for {metric}: mse={bmse:.2f}, mae={bmae:.2f}\n"
+                )
     def generate_answer_embeddings(self, file, 
                             generate_embeddings=False, 
                             embedding_model='text-embedding-ada-002',
                             random_state=None,
                             debug=False):
-        """ Creates an answer model by either generating embeddings, or using existing ones.
-            Outputs a RandomForestRegressor object which can be used to predict categories by metric. """
-
+        """ Generates answer embeddings. Saves them to a csv file if they are new or reads existing ones if specified. """
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
