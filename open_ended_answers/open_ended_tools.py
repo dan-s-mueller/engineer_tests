@@ -58,13 +58,13 @@ class OpenEndedAnswer:
     def create_answer_model(self, file, 
                             generate_embeddings=False, 
                             random_state=None,
-                            debug=False):
+                            debug=False,
+                            embedding_model='text-embedding-ada-002'):
         # Creates an answer model by either generating embeddings, or using existing ones.
         # Outputs a RandomForestRegressor object which can be used to predict categories by metric.
 
         if generate_embeddings:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
-            embedding_model = 'text-embedding-ada-002'
             self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
         else:
@@ -174,8 +174,8 @@ class OpenEndedAnswer:
                 .values
             )
             response = openai.Completion.create(
-                engine="davinci-instruct-beta-v3",
-                prompt=f'What do the following customer answers have in common?\n\nCustomer answers:\n"""\n{answers}\n"""\n\nTheme:',
+                engine='davinci-instruct-beta-v3',
+                prompt=f'What do the following interview responses have in common?\n\n Responses:\n"""\n{answers}\n"""\n\nTheme:',
                 temperature=0,
                 max_tokens=64,
                 top_p=1,
@@ -183,7 +183,7 @@ class OpenEndedAnswer:
                 presence_penalty=0,
             )
             responses.append(
-                response["choices"][0]["text"].replace("\n", ""))
+                response['choices'][0]['text'].replace('\n', ''))
             if debug:
                 print(responses[i])
 
@@ -396,3 +396,51 @@ def plot_embedding_metric_results(metObj, ansObj, score = None, fig_path = None)
     ax.scatter(x_label_sort, getattr(ansObj.df,metObj.df['Metric'].iloc[0]), color='k', label='Manual Grading')
     plt.savefig(fig_path+f'zero_shot_to_manual_qID{ansObj.df.Question_ID.iloc[0]}_{metObj.df.Metric.iloc[0]}.png')    
     plt.show()
+def make_answers(df,q_ID=None,n_answers=1):
+    """ Generate n_answers from question input text. The parameters set here were intended
+        to give diverse answers which do not repeat the question. The parameters were
+        tested in the playground openai environment. """
+    question_IDs = []
+    questions = []
+    responses = []
+    df_new_ans = pd.DataFrame()
+        
+    if not q_ID:
+        for i in range(len(df['Question_ID'].unique())): 
+            df_temp = df[df['Question_ID'] == df['Question_ID'].unique()[i]]  # Get only the section of df with q_ID
+            print(df_temp['Question'].iloc[i])
+            for j in range(n_answers):
+                response = openai.Completion.create(
+                            model="text-davinci-003",
+                            prompt=df_temp['Question'].iloc[i],
+                            temperature=1,
+                            max_tokens=256,
+                            top_p=1,
+                            frequency_penalty=2,
+                            presence_penalty=2)
+                print(j)
+                print(response['choices'][0]['text'])
+                question_IDs.append(df['Question_ID'].unique()[i])
+                questions.append(df_temp['Question'].iloc[i])
+                responses.append(response['choices'][0]['text'])
+        df_new_ans = df_new_ans.assign(Question_ID = question_IDs)
+        df_new_ans = df_new_ans.assign(Question = questions)
+        df_new_ans = df_new_ans.assign(Answers = responses)
+    else:
+        df = df[df_new_ans['Question_ID'] == q_ID]  # Get only the section of df with q_ID
+        for j in range(n_answers):
+            response = openai.Completion.create(
+                        model="text-davinci-003",
+                        prompt=df['Question'].iloc[0],
+                        temperature=1,
+                        max_tokens=256,
+                        top_p=1,
+                        frequency_penalty=2,
+                        presence_penalty=2)
+            print(j)
+            print(response['choices'][0]['text'])
+            responses.append(response['choices'][0]['text'])
+        df_new_ans = df_new_ans.assign(Answers = responses)
+        df_new_ans = df_new_ans.assign(Question_ID = q_ID)
+        df_new_ans = df_new_ans.assign(Question = df['Question'].iloc[0])
+    return df_new_ans

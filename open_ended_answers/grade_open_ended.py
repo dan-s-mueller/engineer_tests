@@ -41,7 +41,8 @@ for i in range(len(df['Question_ID'].unique())):
 
     ans[i].create_answer_model(directory+file_answers[:-4]+f'_{q_ID}.csv', 
                                 random_state=random_state, 
-                                generate_embeddings=generate_embeddings)
+                                generate_embeddings=generate_embeddings,
+                                embedding_model=embedding_model)
     ans[i].generate_answer_embeddings(directory+file_answers[:-4]+f'_{q_ID}.csv', 
                                       random_state=random_state, 
                                       generate_embeddings=generate_embeddings,
@@ -62,7 +63,7 @@ for i in range(len(df['Question_ID'].unique())):
     
 #%% Create question specific metric embeddings, score them and compre to manual grading.
 #TODO: only works now for one question, this will use the first question in the answer set.
-run = True
+run = False
 if run:
     met_qs = []
     for i in range(len(df_metrics['Metric'].unique())):
