@@ -1,5 +1,4 @@
-#%% Generate Embeddings
-# -*- coding: utf-8 -*-
+#%% Define inputs
 """
 Created on Fri Jan  6 20:29:20 2023
 
@@ -11,21 +10,28 @@ import pandas as pd
 import open_ended_tools
 
 # Define run parameters
-directory = './Data_Training/'
-file = 'open_ended_answers.csv'
-generate_embeddings = True
+directory = './Data/'
+file_answers = 'open_ended_answers.csv'
+file_metrics = 'metrics_question_specific.csv'
+generate_embeddings = False
+embedding_model='text-embedding-ada-002'
 n_clusters = 3  # Determined the number of clusters to use
-# Set to none to truly randomize. 42 used in code to reproduce samples to what is in openai docs.
-random_state = 40
+random_state = 40   # Set to none to truly randomize. 42 used in code to reproduce samples to what is in openai docs.
 
 # Read Data
-df = pd.read_csv(directory+file, index_col=0)
+df = pd.read_csv(directory+file_answers, index_col=0)
 df = df[['Question_ID', 'Type', 'Question', 'Answer', 'Correct_answer',
-         'Curiousity_grade', 'Hunger_grade', 'Smarts_grade','Relevance_grade',
-         'Curiousity_optimum', 'Hunger_optimum', 'Smarts_optimum']]
-metrics = ['Curiousity_grade', 'Hunger_grade', 'Smarts_grade','Relevance_grade']
+         'Curiosity', 'Hunger', 'Smarts','Relevance',
+         'Curiosity_optimum', 'Hunger_optimum', 'Smarts_optimum', 'Relevance_optimum']]
 
-#%% Create open_ended_answer object and model
+# metrics = ['Curiousity', 'Hunger', 'Smarts']
+df_metrics = pd.read_csv(directory+file_metrics, index_col=0)
+df_metrics = df_metrics[['Metric','Category_term_short_pos','Category_term_pos',
+                         'Category_term_short_neg','Category_term_neg']]
+metrics = df_metrics['Metric'].unique()
+
+
+#%% Create open_ended_answer object and embeddings
 question = []
 ans = []
 for i in range(len(df['Question_ID'].unique())):
@@ -33,25 +39,43 @@ for i in range(len(df['Question_ID'].unique())):
     question.append(df['Question'][df.index[df['Question_ID'] == q_ID].tolist()[0]])
     ans.append(open_ended_tools.OpenEndedAnswer(df[df['Question_ID'] == q_ID], metrics))
 
-    ans[i].create_answer_model(directory+file[:-4]+f'_{q_ID}.csv', 
+    ans[i].create_answer_model(directory+file_answers[:-4]+f'_{q_ID}.csv', 
                                 random_state=random_state, 
                                 generate_embeddings=generate_embeddings)
+    ans[i].generate_answer_embeddings(directory+file_answers[:-4]+f'_{q_ID}.csv', 
+                                      random_state=random_state, 
+                                      generate_embeddings=generate_embeddings,
+                                      embedding_model=embedding_model)
     print(ans[i])
     
-#%%Plot and analyze
+#%%Create clusters, plot and analyze them
 for i in range(len(df['Question_ID'].unique())):    
     q_ID = df['Question_ID'].unique()[i]
-    ans[i].plot_pairs(fig_path=directory+file[:-4]+f'_pp_{q_ID}.png')
+    ans[i].plot_pairs(fig_path=directory+file_answers[:-4]+f'_pp_{q_ID}.png')
     ans[i].plot_graded_clusters(random_state=random_state,
-                                fig_path=directory+file[:-4]+f'_graded_{q_ID}.png')
+                                fig_path=directory+file_answers[:-4]+f'_graded_{q_ID}.png')
     ans[i].make_named_clusters(n_clusters=n_clusters, 
                                random_state=random_state, 
                                ans_per_cluster=1,
-                               cluster_description_file=directory+file[:-4]+f'_{q_ID}_cd.csv')
-    ans[i].plot_named_clusters(random_state=random_state, fig_path=directory+file[:-4]+f'_{q_ID}.png')
-
+                               cluster_description_file=directory+file_answers[:-4]+f'_{q_ID}_cd.csv')
+    ans[i].plot_named_clusters(random_state=random_state, fig_path=directory+file_answers[:-4]+f'_{q_ID}.png')
+    
+#%% Create question specific metric embeddings, score them and compre to manual grading.
+#TODO: only works now for one question, this will use the first question in the answer set.
+run = True
+if run:
+    met_qs = []
+    for i in range(len(df_metrics['Metric'].unique())):
+        met_name = df_metrics['Metric'].unique()[i]
+        met_qs.append(open_ended_tools.OpenEndedMetric(df_metrics[df_metrics['Metric'] == met_name]))
+    
+        
+        met_qs[i].generate_metric_question_embeddings(ans[0], directory+file_metrics,
+                                          generate_embeddings=True, 
+                                          embedding_model=embedding_model)
+    for m in met_qs:
+        open_ended_tools.plot_embedding_metric_results(m, ans[0], score = None, fig_path = directory+'qs_')
 #%% Test the model with a sample answer not in the dataset which is correct.
-
 # # Stringer question
 # test_answer = []
 # test_answer.append('A lightweight concept for an aircraft fuselage longitudinal stringer could be a honeycomb-structured aluminum stringer. This structure would be made by welding aluminum alloy panels together and attaching honeycomb strips to the panels. The honeycomb strips would be made from a lightweight aluminum alloy with a high strength-to-weight ratio, such as 2024-T3 aluminum. The honeycomb strips would be secured to the panels with rivets, or adhesives.  The honeycomb structure provides strength and stability while also being lightweight. This type of structure is often used in aerospace applications, such as aircraft fuselages, due to its high strength-to-weight ratio and its ability to resist buckling.  The aluminum alloy panels used in the stringer could be formed using hydroforming. Hydroforming is a process that uses pressurized liquid to form aluminum alloy panels into the desired shape for the stringer. This process is fast and cost-effective, and produces parts that are lightweight and strong.  The honeycomb strips could be cut to the desired size using laser cutting. Laser cutting is a fast, precise, and economical way to cut aluminum alloy sheets into the required shapes. This method is also used to cut honeycomb strips')
@@ -61,7 +85,7 @@ for i in range(len(df['Question_ID'].unique())):
 
 # for answer in test_answer:
 #     print(ans[0].test_model(answer))
-    
+
 # # Number order question
 # test_answer = []
 # test_answer.append("The numbers are in ascending alphabetical order.")
