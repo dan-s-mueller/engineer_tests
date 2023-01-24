@@ -1,11 +1,6 @@
-#%% Generate Embeddings
-# -*- coding: utf-8 -*-
 """
-Created on Fri Jan  6 20:29:20 2023
-
 @author: dsmueller3760
-https://openai.com/blog/introducing-text-and-code-embeddings/
-Must have API key set to run.
+Tools to analyzed open ended answers.
 """
 import numpy as np
 import pandas as pd
@@ -71,18 +66,13 @@ class OpenEndedAnswer:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             embedding_model = 'text-embedding-ada-002'
             self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
-            # self.df = self.df.assign(embedding = self.df.Answer.apply(lambda x:
-            #                                                  get_embedding(x, engine='text-embedding-ada-002')))
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
-            print('Embeddings created.')
         else:
             # Create trained model with graded answers and embeddings
             # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
             self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
             self.df['embedding'] = self.df.embedding.apply(
                 eval).apply(np.array)
-            print('Embeddings file read.')
-
         self.X_train = []
         self.X_test = []
         self.y_train = []
@@ -130,14 +120,12 @@ class OpenEndedAnswer:
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             self.df = self.df.assign(embedding = self.df['Answer'].apply(lambda x: get_embedding(x, engine=embedding_model)))
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
-            print('Embeddings created.')
         else:
             # Create trained model with graded answers and embeddings
             # Read in the data with embeddings. This only works if you have run generate embeddings at least once.
             self.df = pd.read_csv(file[:-4]+'_with_embeddings.csv')
             self.df['embedding'] = self.df.embedding.apply(
                 eval).apply(np.array)
-            print('Embeddings file read.')
     def test_model(self,input_answer):
         """ Predict score of metrics for input_answer to the question """
         #  Create embedding from input answer
@@ -328,13 +316,19 @@ class OpenEndedMetric:
         if generate_embeddings: 
             # Generates embeddings of the answers by rereading the original data and rewriting to new with_embeddings
             question = ansObj.df['Question'].iloc[0]
+            category_term_pos = []
+            category_term_neg = []
             embedding_pos = []
             embedding_neg = []
             for i in range(self.df.shape[0]):
-                self.df['Category_term_pos'].iloc[i] = f'A {self.df.Category_term_short_pos.iloc[i]} answer to the following interview question:\n{question}\n'
-                self.df['Category_term_neg'].iloc[i] = f'A {self.df.Category_term_short_neg.iloc[i]} answer to the following interview question:\n{question}\n'
-                embedding_pos.append(get_embedding(self.df['Category_term_pos'].iloc[i], engine=embedding_model))
-                embedding_neg.append(get_embedding(self.df['Category_term_neg'].iloc[i], engine=embedding_model))
+                category_term_pos_txt = f'A {self.df.Category_term_short_pos.iloc[i]} answer to the following interview question:\n{question}\n'
+                category_term_neg_txt = f'A {self.df.Category_term_short_neg.iloc[i]} answer to the following interview question:\n{question}\n'
+                category_term_pos.append(category_term_pos_txt)
+                category_term_neg.append(category_term_neg_txt)
+                embedding_pos.append(get_embedding(category_term_pos_txt, engine=embedding_model))
+                embedding_neg.append(get_embedding(category_term_neg_txt, engine=embedding_model))
+            self.df = self.df.assign(Category_term_pos = category_term_pos)
+            self.df = self.df.assign(Category_term_neg = category_term_neg)
             self.df['embedding_pos'] = embedding_pos
             self.df['embedding_neg'] = embedding_neg
             self.df.to_csv(file[:-4]+'_with_embeddings.csv')
@@ -374,10 +368,9 @@ def plot_embedding_metric_results(metObj, ansObj, score = None, fig_path = None)
     score_diff = score_averages - getattr(ansObj.df,metObj.df['Metric'].iloc[0])
 
     # Sort the answers to show lowest to highest metric grade
-    x_label_sort = list(map(str, ansObj.df['ID'].iloc[idx_sorted].to_numpy()))
+    x_label_sort = list(map(str, ansObj.df.index.values.tolist()))
     ansObj.df = ansObj.df.iloc[idx_sorted]
     
-
     # Build the bar plot
     fig, ax = plt.subplots(figsize=(15,5))
     ax.bar(x_label_sort, score_averages, yerr=score_error, align='center', ecolor='black')
