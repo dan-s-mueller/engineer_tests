@@ -11,13 +11,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 from sklearn.cluster import KMeans
 from sklearn.manifold import TSNE
-from sklearn import metrics
-from scipy.spatial.distance import cdist
 import seaborn as sns; sns.set()
 import matplotlib
 import matplotlib.pyplot as plt
 import statistics
 import k_means_custom
+from random import randint
 
 class OpenEndedAnswer:
     """ An open ended answer object. """
@@ -139,19 +138,18 @@ class OpenEndedAnswer:
                       random_state=None, 
                       ans_per_cluster=3, 
                       cluster_description_file=None,
-                      use_optimal_k = False,
                       debug=False):
         """ Creates named clusters based on a number of clusters requested """
         # Generate clusters
         matrix = np.vstack(self.df.embedding.values)
         self.matrix = matrix
-        self.cluster_best_k, self.cluster_inertia_results = self.plot_cluster_efficiency(alpha_k=0.03)
-        if use_optimal_k:
-            self.n_clusters = self.cluster_best_k
-        else:
+        self.cluster_best_k, self.cluster_inertia_results = self.plot_cluster_efficiency(alpha_k=0.04)
+        if n_clusters:
             self.n_clusters = n_clusters
+        else:
+            self.n_clusters = self.cluster_best_k
             
-        kmeans = KMeans(n_clusters=n_clusters, init="k-means++",
+        kmeans = KMeans(n_clusters=self.n_clusters, init="k-means++",
                         random_state=random_state, n_init=10)
         kmeans.fit(matrix)
         labels = kmeans.labels_
@@ -164,7 +162,7 @@ class OpenEndedAnswer:
         responses = []
         example_answers = []
         # Reading an answer which belong to each cluster.
-        for i in range(n_clusters):
+        for i in range(self.n_clusters):
             if debug:
                 print(f"Cluster {i} Theme:", end=" ")
             answers = "\n".join(
@@ -225,7 +223,7 @@ class OpenEndedAnswer:
         # TODO: Only works where grading is discrete -1, 0, 1. Make continuous.
         for metric in self.metrics:
             plt.figure()
-            plt.rcParams['figure.figsize'] = [15.0, 15.0]
+            plt.rcParams['figure.figsize'] = [8,8]
             plt.rcParams['figure.dpi'] = 140
             color_indices = getattr(self.df,metric)+1
             plt.scatter(x, y, c=color_indices, cmap=colormap, alpha=0.3)
@@ -250,15 +248,18 @@ class OpenEndedAnswer:
         color = list(np.random.random(size=3) * 256)
         for i in range(self.n_clusters):
         # for category, color in enumerate(['red', 'orange', 'green']):
+            # color = tuple(np.random.random(size=3))
+            color = '#%06X' % randint(0, 0xFFFFFF)
             df_cluster = self.df[self.df.Cluster == i]
             xs = np.array(x)[self.df.Cluster == i]
             ys = np.array(y)[self.df.Cluster == i]
             # Plot datapoints. Plot mean data.
-            plt.scatter(xs, ys, color=color[i], alpha=0.3)
+            plt.scatter(xs, ys, alpha=0.3, color=color)
             avg_x = xs.mean()
             avg_y = ys.mean()
             plt.scatter(avg_x, avg_y, marker='x', color=color,
                         s=100, label=f'Cluster {i}')
+            plt.title(f'Named clusters for Question {self.df.Question_ID.iloc[0]}')
             plt.legend()
             # Apply data labels of the Question_ID to each datapoint.
             for j in range(len(xs)):
