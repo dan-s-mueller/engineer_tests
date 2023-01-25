@@ -3,8 +3,8 @@ Code resposity for grading of important metrics for open ended questions in aero
 * Curiousity
 * Hunger
 * Smarts
-The code has two methods of evaluating these metrics for a question/answer set, each of which are based on the use of embeddings from openai (https://beta.openai.com/docs/guides/embeddings/use-cases).
 
+The code has two methods of evaluating these metrics for a question/answer set, each of which are based on the use of embeddings from openai (https://beta.openai.com/docs/guides/embeddings/use-cases).
 * **Method 1**: Embeddings as a feature encoder for a machine learning algorithm. This requires a dataset which has been pregraded for the desired metrics. Kmeans clustering is also used for visualization and can be helpful to populate the training set and test new answers. Works reasonably well
 * **Method 2**: Zero-shot classification with openai embedding cosine distance. This method does not work well with no fine tuning of the openai default model. 
 
